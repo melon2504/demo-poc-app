@@ -1,3 +1,8 @@
+# Spacing (AgGrid + MUI) Theme
+![Spacing_Theme](https://github.com/user-attachments/assets/2b10df88-5666-468e-bc80-9806f3ebae78)
+
+
+
 # React + TypeScript + Vite
 
 https://github.com/ag-grid/ag-grid/issues/9627
