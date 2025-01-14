@@ -1,0 +1,12 @@
+>Git
+
+
+
+
+>CI/CD/DevOps
+
+1)Pushing to Git
+2)Build
+3)Test Stage
+4)Containerization - Creating Image - Docker
+5)\

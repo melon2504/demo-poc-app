@@ -1,5 +1,19 @@
 # React + TypeScript + Vite
 
+https://github.com/ag-grid/ag-grid/issues/9627
+https://ag-grid.com/react-data-grid/theming/
+https://ag-grid.com/react-data-grid/theming-compactness/
+
+https://mui.com/material-ui/customization/density/
+https://github.com/mui/material-ui/blob/master/docs/data/material/customization/density/DensityTool.js
+https://github.com/mui/material-ui/blob/master/docs/src/modules/components/ThemeContext.js
+https://github.com/mui/material-ui/blob/master/docs/data/material/customization/density/density.md
+https://m2.material.io/design/layout/applying-density.html
+
+https://stackoverflow.com/questions/64415444/how-dynamically-change-themeprovider-values-in-styled-components
+
+https://www.geeksforgeeks.org/react-mui-spacing/
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
@@ -18,11 +32,11 @@ export default tseslint.config({
   languageOptions: {
     // other options...
     parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
+      project: ["./tsconfig.node.json", "./tsconfig.app.json"],
       tsconfigRootDir: import.meta.dirname,
     },
   },
-})
+});
 ```
 
 - Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
@@ -31,11 +45,11 @@ export default tseslint.config({
 
 ```js
 // eslint.config.js
-import react from 'eslint-plugin-react'
+import react from "eslint-plugin-react";
 
 export default tseslint.config({
   // Set the react version
-  settings: { react: { version: '18.3' } },
+  settings: { react: { version: "18.3" } },
   plugins: {
     // Add the react plugin
     react,
@@ -44,7 +58,7 @@ export default tseslint.config({
     // other rules...
     // Enable its recommended rules
     ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
+    ...react.configs["jsx-runtime"].rules,
   },
-})
+});
 ```
