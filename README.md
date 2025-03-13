@@ -74,6 +74,7 @@ export default tseslint.config({
 
 
 
+https://plnkr.co/edit/hn5cAl9N414ozt43?open=index.tsx
 
 
 
