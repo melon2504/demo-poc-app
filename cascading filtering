@@ -1,0 +1,153 @@
+1. There is an array of objects - lets name it as referenceData
+2. I have a form created using react-hook-form
+3. The fields to be displayed are passed to a reusable form component in form of array of objects with config of name, label, required, disabled etc.
+4. The form has few common fields and some displayed within useFieldArray
+5. Most of the fields are dropdown options where options are based on referenceData and cascade filtering. E.g Field C will have list of options based on what's
+selected on Field A  (maps to key A in referenceData) & Field B (maps to key B in referenceData) - what results after filtering for key C. It goes like that
+till Field F. All these fields are part of common fields
+6. Field G is in useFieldArray - cascade filtering based on Field A,B,C,D,E,F.
+7. For some value selected in Field G, e.g. XYZ, the field F is not applicable - so its set to empty (if anything was selected prior) and disabled
+8. But as soon as Field E or any previous field changes - Field F should be as before (enabled & reset) and Field G should be set to empty with no options since Field F
+will be blank now & cascading filtering won't result in any options
+9. Currently using custom hooks for each field that does the cascading filtering, setting options list based on referenceData 
+
+
+How to handle the above inter dependency case for Field G and F
+
+This is a classic cascading + conditional invalidation problem, and the key issue is ownership of state transitions between F (common field) and G (fieldArray field).
+
+Right now, because each field has its own hook, you’re missing a single place that understands cross-field rules like:
+
+“If G === XYZ → F becomes N/A
+If any of A–E changes → F reverts, G resets”
+
+Below is a clean, scalable pattern that works very well with react-hook-form.
+
+Core Principle
+
+👉 Separate “option derivation” from “business rules”
+
+Cascading options = pure derivation from referenceData
+
+Inter-field rules = centralized effects driven by watch()
+
+High-Level Strategy
+
+Keep all cascading option logic pure
+
+Functions like getOptionsForF(a,b,c,d,e)
+
+No side effects inside option hooks
+
+Use useWatch + useEffect for inter-dependency rules
+
+One effect handles G → F
+
+Another handles A–E → reset F & G
+
+Disable fields via derived state, not stored state
+
+disabled={isFDisabled} instead of setting it in form state
+
+Step 1: Watch the Relevant Fields
+const [a, b, c, d, e, f] = useWatch({
+  control,
+  name: ['fieldA', 'fieldB', 'fieldC', 'fieldD', 'fieldE', 'fieldF']
+});
+
+const fieldGArray = useWatch({
+  control,
+  name: 'fieldG'
+});
+
+Step 2: Detect “XYZ” in Field G
+const isFNotApplicable = useMemo(() => {
+  return fieldGArray?.some(item => item.value === 'XYZ');
+}, [fieldGArray]);
+
+Step 3: Rule 1 — If G = XYZ → Clear & Disable F
+useEffect(() => {
+  if (isFNotApplicable) {
+    setValue('fieldF', null, { shouldDirty: true });
+  }
+}, [isFNotApplicable, setValue]);
+
+<FieldF
+  disabled={isFNotApplicable}
+  options={isFNotApplicable ? [] : optionsForF}
+/>
+
+
+✔️ No infinite loops
+✔️ No coupling inside Field F hook
+
+Step 4: Rule 2 — If A–E Changes → Reset F & G
+
+Track previous values to detect upstream changes:
+
+const prevDepsRef = useRef({ a, b, c, d, e });
+
+useEffect(() => {
+  const prev = prevDepsRef.current;
+  const changed =
+    prev.a !== a ||
+    prev.b !== b ||
+    prev.c !== c ||
+    prev.d !== d ||
+    prev.e !== e;
+
+  if (changed) {
+    // Reset F
+    setValue('fieldF', null);
+    
+    // Reset G fieldArray
+    setValue('fieldG', []);
+  }
+
+  prevDepsRef.current = { a, b, c, d, e };
+}, [a, b, c, d, e, setValue]);
+
+Step 5: Field G Options Depend on F
+const optionsForG = useMemo(() => {
+  if (!f) return [];
+  return getOptionsForG(referenceData, a, b, c, d, e, f);
+}, [referenceData, a, b, c, d, e, f]);
+
+Why This Works
+✅ No circular updates
+
+G → F is handled in one direction
+
+A–E → F & G reset handled separately
+
+✅ No “smart fields”
+
+Fields don’t know about each other
+
+Only the form orchestration layer does
+
+✅ Scales to more rules
+
+Add rules like:
+
+“If F = ABC → hide H”
+
+without touching field hooks.
+
+Recommended Folder Structure
+/hooks
+  useFieldOptions.ts     // pure option derivation
+  useFormRules.ts        // inter-field effects
+
+/forms
+  ReusableForm.tsx
+
+TL;DR Pattern
+Concern	Where it lives
+Cascading dropdown options	Pure hooks / utils
+Disable / reset logic	useEffect + useWatch
+Business rules	Centralized
+Field components	Dumb & reusable
+
+
+
