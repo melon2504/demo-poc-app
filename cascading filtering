@@ -151,3 +151,207 @@ Field components	Dumb & reusable
 
 
 
+Below is a working, minimal-but-realistic example showing how to wire everything together with react-hook-form, including:
+
+Common cascading fields A–F
+
+useFieldArray for G
+
+Centralized inter-dependency rules
+
+Pure option derivation from referenceData
+
+Proper reset / disable behavior for F ↔ G
+
+I’ll keep UI simple (native <select>), but the pattern is identical for MUI / Ant / custom selects.
+
+1️⃣ Sample referenceData
+type RefItem = {
+  A: string;
+  B: string;
+  C: string;
+  D: string;
+  E: string;
+  F: string;
+  G: string;
+};
+
+export const referenceData: RefItem[] = [
+  { A: 'A1', B: 'B1', C: 'C1', D: 'D1', E: 'E1', F: 'F1', G: 'G1' },
+  { A: 'A1', B: 'B1', C: 'C1', D: 'D1', E: 'E1', F: 'F2', G: 'XYZ' },
+  { A: 'A1', B: 'B2', C: 'C2', D: 'D2', E: 'E2', F: 'F3', G: 'G2' },
+];
+
+2️⃣ Pure Option Utilities (NO side effects)
+const uniq = (arr: string[]) => [...new Set(arr)];
+
+export function getOptions(
+  data: RefItem[],
+  keys: Partial<RefItem>,
+  target: keyof RefItem
+) {
+  return uniq(
+    data
+      .filter(item =>
+        Object.entries(keys).every(
+          ([k, v]) => !v || item[k as keyof RefItem] === v
+        )
+      )
+      .map(item => item[target])
+  );
+}
+
+3️⃣ Reusable Select Component
+type SelectProps = {
+  label: string;
+  value?: string;
+  options: string[];
+  disabled?: boolean;
+  onChange: (v: string) => void;
+};
+
+const SelectField = ({
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+}: SelectProps) => (
+  <label style={{ display: 'block', marginBottom: 12 }}>
+    {label}
+    <select
+      value={value ?? ''}
+      disabled={disabled}
+      onChange={e => onChange(e.target.value || '')}
+    >
+      <option value="">--</option>
+      {options.map(o => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+    </select>
+  </label>
+);
+
+4️⃣ Form With Centralized Rules
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
+
+type FormValues = {
+  A?: string;
+  B?: string;
+  C?: string;
+  D?: string;
+  E?: string;
+  F?: string;
+  G: { value?: string }[];
+};
+
+export function CascadingForm() {
+  const { control, setValue } = useForm<FormValues>({
+    defaultValues: { G: [{}] },
+  });
+
+  const { fields } = useFieldArray({
+    control,
+    name: 'G',
+  });
+
+  const [A, B, C, D, E, F] = useWatch({
+    control,
+    name: ['A', 'B', 'C', 'D', 'E', 'F'],
+  });
+
+  const G = useWatch({ control, name: 'G' });
+
+  // 🔹 Options
+  const optionsA = getOptions(referenceData, {}, 'A');
+  const optionsB = getOptions(referenceData, { A }, 'B');
+  const optionsC = getOptions(referenceData, { A, B }, 'C');
+  const optionsD = getOptions(referenceData, { A, B, C }, 'D');
+  const optionsE = getOptions(referenceData, { A, B, C, D }, 'E');
+  const optionsF = getOptions(referenceData, { A, B, C, D, E }, 'F');
+  const optionsG = F
+    ? getOptions(referenceData, { A, B, C, D, E, F }, 'G')
+    : [];
+
+  // 🔹 Rule: G === XYZ → F N/A
+  const isFDisabled = G?.some(g => g.value === 'XYZ');
+
+  // Clear F when disabled
+  React.useEffect(() => {
+    if (isFDisabled) {
+      setValue('F', undefined);
+    }
+  }, [isFDisabled, setValue]);
+
+  // 🔹 Rule: A–E changes → reset F & G
+  const prevDeps = React.useRef({ A, B, C, D, E });
+
+  React.useEffect(() => {
+    const prev = prevDeps.current;
+    const changed =
+      prev.A !== A ||
+      prev.B !== B ||
+      prev.C !== C ||
+      prev.D !== D ||
+      prev.E !== E;
+
+    if (changed) {
+      setValue('F', undefined);
+      setValue('G', []);
+    }
+
+    prevDeps.current = { A, B, C, D, E };
+  }, [A, B, C, D, E, setValue]);
+
+  return (
+    <>
+      <SelectField label="A" value={A} options={optionsA} onChange={v => setValue('A', v)} />
+      <SelectField label="B" value={B} options={optionsB} onChange={v => setValue('B', v)} />
+      <SelectField label="C" value={C} options={optionsC} onChange={v => setValue('C', v)} />
+      <SelectField label="D" value={D} options={optionsD} onChange={v => setValue('D', v)} />
+      <SelectField label="E" value={E} options={optionsE} onChange={v => setValue('E', v)} />
+
+      <SelectField
+        label="F"
+        value={F}
+        options={isFDisabled ? [] : optionsF}
+        disabled={isFDisabled}
+        onChange={v => setValue('F', v)}
+      />
+
+      <h4>Field G (FieldArray)</h4>
+      {fields.map((field, i) => (
+        <SelectField
+          key={field.id}
+          label={`G[${i}]`}
+          value={G?.[i]?.value}
+          options={optionsG}
+          onChange={v => setValue(`G.${i}.value`, v)}
+        />
+      ))}
+    </>
+  );
+}
+
+5️⃣ What This Example Demonstrates
+
+✔️ Cascading options (A → F → G)
+✔️ G disables & clears F when XYZ selected
+✔️ Upstream change resets downstream fields
+✔️ No circular updates
+✔️ Works with any reusable form renderer
+
+6️⃣ Key Takeaways
+
+Options = pure derivation
+
+Rules = effects at form level
+
+Disable is derived, not stored
+
+useWatch is your orchestration tool
+
+
+
